@@ -187,15 +187,19 @@ initialization_from_labels_binary <- function(y, z, J, Z0_binary) {
   d_single <- ncol(y) / 2L
   phi1 <- estimate_phi_block(y[, 1:d_single, drop = FALSE])
   phi2 <- estimate_phi_block(y[, (d_single + 1L):(2L * d_single), drop = FALSE])
-  # both individuals share a single phi (paper 2.3): start from the block average,
-  # clamped strictly inside the (-1, 1) truncation support
-  phi <- max(min((phi1 + phi2) / 2, 0.95), -0.95)
+  # The general paper model has one correlation-decay parameter per state.
+  # Keep the two empirical block estimates distinct; the restricted shared-phi
+  # path uses their average below.
+  phi1 <- max(min(phi1, 0.95), -0.95)
+  phi2 <- max(min(phi2, 0.95), -0.95)
+  phi_shared <- (phi1 + phi2) / 2
 
   p_init <- as.numeric(table(z) / length(z))
   if (length(p_init) < J) p_init <- as.numeric(table(factor(z, levels = 1:J)) / length(z))
   p_init <- pmax(p_init, 1e-8)
   p_init <- p_init / sum(p_init)
-  list(z = z, beta = beta_init, v_sq = v_sq_init, phi = phi, p = p_init)
+  list(z = z, beta = beta_init, v_sq = v_sq_init,
+       phi = phi1, psi = phi2, phi_shared = phi_shared, p = p_init)
 }
 
 #' @keywords internal
@@ -232,6 +236,9 @@ validate_initialization_binary <- function(init, y, J, Z0_binary) {
   init$v_sq <- pmax(init$v_sq, 1e-8)
   init$phi <- as.numeric(init$phi)[1]
   init$phi <- max(min(init$phi, 0.95), -0.95)
+  if (is.null(init$psi)) init$psi <- init$phi
+  init$psi <- as.numeric(init$psi)[1]
+  init$psi <- max(min(init$psi, 0.95), -0.95)
   init$p <- as.numeric(init$p)
   if (length(init$p) != J) stop("init$p must have length J.", call. = FALSE)
   init$p <- pmax(init$p, 1e-8)

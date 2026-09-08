@@ -3,7 +3,8 @@
 #
 # Provides:
 #   * Legendre (LOP) basis at arbitrary order and block layout.
-#   * A model-consistent two-block SAD(1) data generator (single shared phi).
+#   * A model-consistent two-block SAD(1) data generator (State-1 phi and
+#     State-2 psi).
 #   * Faithful generators for the three paper scenarios (K = 3 / 5 / 8), reading
 #     the stored truth parameters in benchmark/data/sim_truth_K*.rds.
 #   * A "mirror" scenario in which clusters are distinguishable only through the
@@ -56,8 +57,11 @@ mcg_basis_single <- function(d, order = 4L, times = seq_len(d)) {
 # ---- model-consistent SAD generator --------------------------------------
 
 # Generate one paired vector consistent with dSADmvnorm: within each block
-# x_t = m_t + e_t - phi * e_{t-1}, e_t ~ N(0, v_t), e_0 = 0. Shared phi.
+# x_t = m_t + e_t - phi_b * e_{t-1}, e_t ~ N(0, v_t), e_0 = 0, where
+# phi_b is the state-specific correlation-decay parameter.
 mcg_gen_two_block <- function(mu, phi, v_sq, d_single) {
+  if (length(phi) == 1L) phi <- rep(phi, 2L)
+  if (length(phi) != 2L) stop("phi must contain one value per state")
   d <- 2L * d_single
   out <- numeric(d)
   for (blk in 0:1) {
@@ -65,7 +69,7 @@ mcg_gen_two_block <- function(mu, phi, v_sq, d_single) {
     for (t in 1:d_single) {
       idx <- blk * d_single + t
       e <- rnorm(1, 0, sqrt(v_sq[idx]))
-      out[idx] <- mu[idx] + e - phi * e_prev
+      out[idx] <- mu[idx] + e - phi[blk + 1L] * e_prev
       e_prev <- e
     }
   }
@@ -86,13 +90,13 @@ mcg_scenario_params <- function(K, data_dir) {
     d_single = 16L,
     times = if (!is.null(s$Times)) as.numeric(s$Times) else 1:16,
     p = as.numeric(s$p_true),
-    phi = as.numeric(s$phi1_true),          # single shared phi (paper method)
+    phi = c(as.numeric(s$phi1_true), as.numeric(s$phi2_true)),
     v_sq = as.numeric(s$v_sq_true),
     beta = s$beta_true                        # K x 10
   )
 }
 
-# Generate a fresh replicate of a paper scenario under the single-phi model.
+# Generate a fresh replicate of a paper scenario under the two-state model.
 mcg_gen_scenario <- function(par, seed) {
   set.seed(seed)
   K <- par$K; n <- par$n; d_single <- par$d_single
@@ -193,7 +197,8 @@ mcg_lop_features <- function(Y, d_single = ncol(Y) / 2L, order = 4L,
 # EM for the SAD(1) + LOP finite mixture (same model as the MCMC).
 # =========================================================================
 # blocks: list of column-index vectors; the SAD recursion resets at each block
-# start and all blocks share a single phi. basis: design matrix (d x P) mapping
+# start and each block has its own correlation parameter. The basis is a design
+# matrix (d x P) mapping
 # beta_j (length P) to the component mean. v_mode: "pertime" (heteroscedastic,
 # the SAD default) or "single" (homoscedastic AR(1)). fix_phi: if non-NULL,
 # phi is held fixed (phi = 0 gives the independence / iid-innovation model).
@@ -201,8 +206,15 @@ mcg_lop_features <- function(Y, d_single = ncol(Y) / 2L, order = 4L,
 # Whitened innovations s (n x d) for residual matrix r given phi and block resets.
 .mcg_whiten <- function(r, phi, resets) {
   d <- ncol(r); s <- matrix(0, nrow(r), d)
+  block_id <- cumsum(resets)
+  if (length(phi) == 1L) phi <- rep(phi, max(block_id))
+  if (length(phi) != max(block_id)) stop("phi must contain one value per block")
   for (t in seq_len(d)) {
-    if (resets[t]) s[, t] <- r[, t] else s[, t] <- r[, t] + phi * s[, t - 1L]
+    if (resets[t]) {
+      s[, t] <- r[, t]
+    } else {
+      s[, t] <- r[, t] + phi[block_id[t]] * s[, t - 1L]
+    }
   }
   s
 }
@@ -222,6 +234,7 @@ mcg_em_sad <- function(Y, J, blocks, basis, order = 4L,
   n <- nrow(Y); d <- ncol(Y); P <- ncol(basis)
   resets <- logical(d)
   for (b in blocks) resets[b[1]] <- TRUE
+  n_blocks <- length(blocks)
   ZtZ <- crossprod(basis)
 
   # GLS solve for beta given phi, v: minimise weighted whitened residual.
@@ -245,7 +258,7 @@ mcg_em_sad <- function(Y, J, blocks, basis, order = 4L,
     z0 <- if (is.null(km)) sample.int(J, n, replace = TRUE) else km$cluster
     # init params
     p <- as.numeric(table(factor(z0, levels = 1:J)) / n); p[p < 1e-6] <- 1e-6; p <- p / sum(p)
-    phi <- if (!is.null(fix_phi)) fix_phi else 0.3
+    phi <- if (!is.null(fix_phi)) rep(fix_phi, length.out = n_blocks) else rep(0.3, n_blocks)
     v_sq <- pmax(apply(Y, 2, var), 1e-4)
     if (v_mode == "single") v_sq <- rep(mean(v_sq), d)
     beta <- matrix(0, J, P)
@@ -289,8 +302,10 @@ mcg_em_sad <- function(Y, J, blocks, basis, order = 4L,
           } else vv <- pmax(ssq / n, 1e-8)
           0.5 * (sum(n * log(2 * pi * vv)) + sum(ssq / vv))
         }
-        opt <- optimize(negQ, c(-0.95, 0.95))
-        phi <- opt$minimum
+        opt <- stats::optim(phi, negQ, method = "L-BFGS-B",
+                            lower = rep(-0.95, n_blocks),
+                            upper = rep(0.95, n_blocks))
+        phi <- opt$par
       }
       ssq <- numeric(d)
       for (j in 1:J) {
@@ -317,16 +332,18 @@ mcg_em_sad <- function(Y, J, blocks, basis, order = 4L,
 # =========================================================================
 # Generalised SAD(1) MCMC over arbitrary block structure (ablation kernel).
 # =========================================================================
-# A single nimble distribution handling any block layout via a reset indicator.
+# A single nimble distribution handling any block layout with one correlation
+# parameter per block.
 
 .mcg_dSADblocks <- nimble::nimbleFunction(
-  run = function(x = double(1), mean = double(1), phi = double(0),
-                 v_sq = double(1), reset = double(1), d = integer(0),
+  run = function(x = double(1), mean = double(1), phi = double(1),
+                 v_sq = double(1), reset = double(1), block_id = double(1),
+                 d = integer(0),
                  log = integer(0, default = 0L)) {
     returnType(double(0))
     q <- 0.0; s <- 0.0
     for (t in 1:d) {
-      if (reset[t] > 0.5) s <- (x[t] - mean[t]) else s <- (x[t] - mean[t]) + phi * s
+      if (reset[t] > 0.5) s <- (x[t] - mean[t]) else s <- (x[t] - mean[t]) + phi[block_id[t]] * s
       q <- q + (s * s) / v_sq[t] + log(2.0 * 3.141592653589793 * v_sq[t])
     }
     logdens <- -0.5 * q
@@ -334,14 +351,15 @@ mcg_em_sad <- function(Y, J, blocks, basis, order = 4L,
   }
 )
 .mcg_rSADblocks <- nimble::nimbleFunction(
-  run = function(n = integer(0, default = 1), mean = double(1), phi = double(0),
-                 v_sq = double(1), reset = double(1), d = integer(0)) {
+  run = function(n = integer(0, default = 1), mean = double(1), phi = double(1),
+                 v_sq = double(1), reset = double(1), block_id = double(1),
+                 d = integer(0)) {
     returnType(double(1))
     out <- numeric(d, init = TRUE); e_prev <- 0.0
     for (t in 1:d) {
       e <- rnorm(1, 0, sqrt(v_sq[t]))
       if (reset[t] > 0.5) e_prev <- 0.0
-      out[t] <- mean[t] + e - phi * e_prev
+      out[t] <- mean[t] + e - phi[block_id[t]] * e_prev
       e_prev <- e
     }
     return(out)
@@ -355,9 +373,10 @@ mcg_register_sadblocks <- function() {
   if (.mcg_sadblocks_registered$done) return(invisible(TRUE))
   nimble::registerDistributions(list(
     dSADblocks = list(
-      BUGSdist = "dSADblocks(mean, phi, v_sq, reset, d)",
-      types = c("value=double(1)", "mean=double(1)", "phi=double(0)",
-                "v_sq=double(1)", "reset=double(1)", "d=integer(0)"),
+      BUGSdist = "dSADblocks(mean, phi, v_sq, reset, block_id, d)",
+      types = c("value=double(1)", "mean=double(1)", "phi=double(1)",
+                "v_sq=double(1)", "reset=double(1)",
+                "block_id=double(1)", "d=integer(0)"),
       discrete = FALSE)
   ))
   .mcg_sadblocks_registered$done <- TRUE
@@ -378,6 +397,10 @@ mcg_run_sad_mcmc <- function(Y, J, blocks, basis, v_mode = c("pertime", "single"
   Y <- as.matrix(Y); storage.mode(Y) <- "double"
   n <- nrow(Y); d <- ncol(Y); P <- ncol(basis)
   reset <- numeric(d); for (b in blocks) reset[b[1]] <- 1
+  block_id <- integer(d)
+  for (b in seq_along(blocks)) block_id[blocks[[b]]] <- b
+  if (any(block_id == 0L)) stop("blocks must cover every column of Y")
+  n_blocks <- length(blocks)
   nv <- if (v_mode == "single") 1L else d
   vmap <- if (v_mode == "single") rep(1L, d) else seq_len(d)
 
@@ -416,18 +439,21 @@ mcg_run_sad_mcmc <- function(Y, J, blocks, basis, v_mode = c("pertime", "single"
       p[1:J] ~ ddirch(alpha[1:J])
       for (j in 1:J) for (k in 1:P) beta[j, k] ~ dnorm(mu_beta[k], tau = 1 / sigma_beta[k]^2)
       for (t in 1:d) v_sq[t] ~ dinvgamma(alpha_v, beta_v)
-      phi ~ T(dnorm(mu_phi, tau = 1 / eta_phi), -1, 1)
+      for (b in 1:n_blocks) phi[b] ~ T(dnorm(mu_phi, tau = 1 / eta_phi), -1, 1)
       for (i in 1:n) z[i] ~ dcat(p[1:J])
       for (j in 1:J) for (t in 1:d) mu[j, t] <- inprod(beta[j, 1:P], Z0[t, 1:P])
-      for (i in 1:n) y[i, 1:d] ~ dSADblocks(mean = mu[z[i], 1:d], phi = phi,
-                                            v_sq = v_sq[1:d], reset = reset[1:d], d = d)
+      for (i in 1:n) y[i, 1:d] ~ dSADblocks(mean = mu[z[i], 1:d], phi = phi[1:n_blocks],
+                                            v_sq = v_sq[1:d], reset = reset[1:d],
+                                            block_id = block_id[1:d], d = d)
     })
     constants <- list(n = n, d = d, J = as.integer(J), P = as.integer(P),
-                      Z0 = basis, reset = reset,
+                      n_blocks = as.integer(n_blocks), Z0 = basis, reset = reset,
+                      block_id = as.numeric(block_id),
                       alpha_v = priors$alpha_v, beta_v = priors$beta_v,
                       mu_phi = priors$mu_phi, eta_phi = priors$eta_phi,
                       sigma_beta = sigma_beta, mu_beta = mu_beta)
-    inits <- list(z = z0, beta = beta0, v_sq = v0, phi = 0.3, p = p0)
+    inits <- list(z = z0, beta = beta0, v_sq = v0,
+                  phi = rep(0.3, n_blocks), p = p0)
     model <- nimble::nimbleModel(code, constants = constants,
                                  data = list(y = Y), inits = inits, check = FALSE)
     cmodel <- nimble::compileNimble(model, showCompilerOutput = FALSE)
@@ -435,38 +461,45 @@ mcg_run_sad_mcmc <- function(Y, J, blocks, basis, v_mode = c("pertime", "single"
     conf$setMonitors(c("phi", "p", "v_sq", "beta")); conf$addMonitors("z")
     conf$removeSamplers("z"); for (i in 1:n) conf$addSampler(paste0("z[", i, "]"), type = "categorical")
     conf$removeSamplers("phi")
-    conf$addSampler("phi", type = "slice",
-                    control = list(adaptive = TRUE, adaptInterval = 200,
-                                   lower = -1 + 1e-8, upper = 1 - 1e-8))
+    for (b in seq_len(n_blocks)) {
+      conf$addSampler(paste0("phi[", b, "]"), type = "slice",
+                      control = list(adaptive = TRUE, adaptInterval = 200,
+                                     lower = -1 + 1e-8, upper = 1 - 1e-8))
+    }
     for (t in 1:d) {
       conf$removeSamplers(paste0("v_sq[", t, "]"))
       conf$addSampler(paste0("v_sq[", t, "]"), type = "slice",
                       control = list(adaptive = TRUE, adaptInterval = 200, lower = 1e-8))
     }
   } else {
-    use_phi_node <- is.null(fix_phi); phi_const <- if (use_phi_node) 0 else fix_phi
+    use_phi_node <- is.null(fix_phi)
+    phi_const <- if (use_phi_node) rep(0, n_blocks) else rep(fix_phi, length.out = n_blocks)
     code <- nimble::nimbleCode({
       for (j in 1:J) alpha[j] <- 1
       p[1:J] ~ ddirch(alpha[1:J])
       for (j in 1:J) for (k in 1:P) beta[j, k] ~ dnorm(mu_beta[k], tau = 1 / sigma_beta[k]^2)
       for (t in 1:nv) v_raw[t] ~ dinvgamma(alpha_v, beta_v)
       for (t in 1:d) v_sq[t] <- v_raw[vmap[t]]
-      phi_free ~ T(dnorm(mu_phi, tau = 1 / eta_phi), -1, 1)
-      phi <- use_phi * phi_free + (1 - use_phi) * phi_fixed
+      for (b in 1:n_blocks) {
+        phi_free[b] ~ T(dnorm(mu_phi, tau = 1 / eta_phi), -1, 1)
+        phi[b] <- use_phi * phi_free[b] + (1 - use_phi) * phi_fixed[b]
+      }
       for (i in 1:n) z[i] ~ dcat(p[1:J])
       for (j in 1:J) for (t in 1:d) mu[j, t] <- inprod(beta[j, 1:P], Z0[t, 1:P])
-      for (i in 1:n) y[i, 1:d] ~ dSADblocks(mean = mu[z[i], 1:d], phi = phi,
-                                            v_sq = v_sq[1:d], reset = reset[1:d], d = d)
+      for (i in 1:n) y[i, 1:d] ~ dSADblocks(mean = mu[z[i], 1:d], phi = phi[1:n_blocks],
+                                            v_sq = v_sq[1:d], reset = reset[1:d],
+                                            block_id = block_id[1:d], d = d)
     })
     constants <- list(n = n, d = d, J = as.integer(J), P = as.integer(P), nv = nv,
-                      vmap = as.integer(vmap), Z0 = basis, reset = reset,
+                      n_blocks = as.integer(n_blocks), vmap = as.integer(vmap),
+                      Z0 = basis, reset = reset, block_id = as.numeric(block_id),
                       alpha_v = priors$alpha_v, beta_v = priors$beta_v,
                       mu_phi = priors$mu_phi, eta_phi = priors$eta_phi,
                       sigma_beta = sigma_beta, mu_beta = mu_beta,
                       use_phi = as.numeric(use_phi_node), phi_fixed = phi_const)
     inits <- list(z = z0, beta = beta0,
                   v_raw = if (v_mode == "single") mean(v0) else v0,
-                  phi_free = 0.3, p = p0)
+                  phi_free = rep(0.3, n_blocks), p = p0)
     model <- nimble::nimbleModel(code, constants = constants,
                                  data = list(y = Y), inits = inits, check = FALSE)
     cmodel <- nimble::compileNimble(model, showCompilerOutput = FALSE)
@@ -475,9 +508,11 @@ mcg_run_sad_mcmc <- function(Y, J, blocks, basis, v_mode = c("pertime", "single"
     conf$removeSamplers("z"); for (i in 1:n) conf$addSampler(paste0("z[", i, "]"), type = "categorical")
     if (use_phi_node) {
       conf$removeSamplers("phi_free")
-      conf$addSampler("phi_free", type = "slice",
-                      control = list(adaptive = TRUE, adaptInterval = 200,
-                                     lower = -1 + 1e-8, upper = 1 - 1e-8))
+      for (b in seq_len(n_blocks)) {
+        conf$addSampler(paste0("phi_free[", b, "]"), type = "slice",
+                        control = list(adaptive = TRUE, adaptInterval = 200,
+                                       lower = -1 + 1e-8, upper = 1 - 1e-8))
+      }
     }
     for (t in 1:nv) {
       conf$removeSamplers(paste0("v_raw[", t, "]"))

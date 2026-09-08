@@ -1,3 +1,13 @@
+# BPFC 0.1.2
+
+- Restored the manuscript model as the default: State 1 and State 2 now use
+  separate SAD(1) correlation-decay parameters `phi` and `psi`. The previous
+  shared-parameter model remains available explicitly with `two_phi = FALSE`.
+- Updated initialization and plug-in BIC evaluation for the two-parameter
+  covariance model.
+- Added the analysis-ready Gray/Gough mouse SNP-effect matrix and a dedicated
+  `MCG_DATASET=mouse` reproduction path using J = 15 and 30,000 iterations.
+
 # BPFC 0.1.1
 
 - Added `plot_mixing_trace()` for publication-ready mixing-proportion MCMC
@@ -20,9 +30,9 @@ manuscript.
 * `run_mcmc_binary()` fits Bayesian finite-mixture functional clustering of
   paired (K = 2) longitudinal trajectories at a fixed number of clusters `J`.
 * Paired cluster means use Legendre orthogonal polynomial bases (order 4).
-* Within-individual residual correlation uses a block-diagonal SAD(1) covariance
-  with a single shared time-correlation parameter `phi` and time-specific
-  innovation variances.
+* Within-state residual correlation uses a block-diagonal SAD(1) covariance
+  with separate `phi` and `psi` parameters and time-specific innovation
+  variances.
 * `fit_many_J()` / `eval_bic()` / `plot_bic()` provide BIC-based model selection
   over a grid of `J`.
 * `plot_trace_density()` provides MCMC trace and density diagnostics.
@@ -33,8 +43,9 @@ manuscript.
 
 ## Reproducibility
 
-* `inst/reproduce/` contains the full simulation suite (stability, the
+* `inst/reproduce/` contains the simulation suite (stability, the
   joint/concatenation/independent ablation with two mirror scenarios, secondary
-  ablations, and convergence diagnostics) plus the LINCS dose-response workflow.
+  ablations, and convergence diagnostics) plus real-data workflows, including
+  the Gray/Gough mouse analysis used in the manuscript.
 * All simulation inputs are regenerated deterministically from stored scenario
   parameters and fixed seeds.

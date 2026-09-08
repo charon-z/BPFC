@@ -16,9 +16,10 @@ clusters the two trajectories **jointly**:
 - the cluster mean is a **paired** Legendre-orthogonal-polynomial (order 4)
   curve `mu_j = X beta_j` spanning both individuals, so a cluster can express
   synergistic or antagonistic joint dynamics;
-- within-individual residual correlation is modelled by a SAD(1) covariance with
-  a **single shared** time-correlation parameter `phi` (truncated to `(-1, 1)`)
-  and time-point-specific innovation variances `v_sq`.
+- within-state residual correlation is modelled by a block-diagonal SAD(1)
+  covariance with separate correlation-decay parameters `phi` (State 1) and
+  `psi` (State 2), each truncated to `(-1, 1)`, and time-point-specific
+  innovation variances `v_sq`.
 
 Inference uses Gibbs and slice samplers via `nimble`. Label switching is
 resolved with an ECR-style relabeling step before computing MAP cluster labels,
@@ -65,12 +66,18 @@ fit <- run_mcmc_binary(
   thin   = 1
 )
 
+# The paper model (default) estimates phi and psi separately.
+fit$posterior_mean[c("phi", "psi")]
+
+# Optional restricted special case, if scientifically justified:
+# fit_shared <- run_mcmc_binary(..., two_phi = FALSE)
+
 fit$clustering          # MAP cluster label per feature
 fit$cluster_prob        # posterior cluster probabilities (n x J)
 fit$cluster_uncertainty # 1 - max posterior probability per feature
 
 # Trace / density diagnostics
-plot_trace_density(fit, params = c("^phi", "^p\\["))
+plot_trace_density(fit, params = c("^phi", "^psi", "^p\\["))
 
 # Readable mixing-proportion traces for all components
 plot_mixing_trace(fit)
@@ -101,8 +108,8 @@ plot_bic(res$eval)  # BIC vs J
 | Functional basis | Legendre orthogonal polynomials, order 4 (q = 5; paired P = 10) |
 | Mixture | finite mixture, `z ~ Categorical(p)`, `p ~ Dirichlet` |
 | Cluster mean | `mu_j = X beta_j`, `beta_j ~ MVN` |
-| Covariance | block-diagonal SAD(1); shared `phi ~ TruncatedNormal(-1, 1)`; `v_sq ~ InvGamma` |
-| Sampler | `nimble`: categorical (`z`), Dirichlet-conjugate (`p`), slice (`phi`, `v_sq`), RW-block (`beta`) |
+| Covariance | block-diagonal SAD(1); State 1 uses `phi`, State 2 uses `psi`; both are truncated-normal on `(-1, 1)`; `v_sq ~ InvGamma` |
+| Sampler | `nimble`: categorical (`z`), Dirichlet-conjugate (`p`), slice (`phi`, `psi`, `v_sq`), RW-block (`beta`) |
 | Post-processing | ECR relabeling, MAP labels, posterior cluster probabilities, BIC |
 
 ## Main exported functions
@@ -136,7 +143,8 @@ MCG_R=5 MCG_NITER=3000 bash BPFC/inst/reproduce/run_full.sh 6
 Rscript BPFC/inst/reproduce/02_make_tables.R
 Rscript BPFC/inst/reproduce/03_make_figures.R
 # real-data workflow (BIC -> clustering -> module network):
-Rscript BPFC/inst/reproduce/04_real_data_analysis.R   # MCG_DATASET=example|lincs|smillie
+Rscript BPFC/inst/reproduce/04_real_data_analysis.R   # bundled toy example
+MCG_DATASET=mouse Rscript BPFC/inst/reproduce/04_real_data_analysis.R
 ```
 
 Simulation data are regenerated deterministically from the stored scenario

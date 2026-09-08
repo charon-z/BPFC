@@ -121,7 +121,7 @@ fit <- switch(
   bpfc = BPFC::run_mcmc_binary(
     y, J = J, format = "wide", times = times,
     niter = niter, thin = 1L, burnin_frac = 0.25,
-    seed = seed
+    seed = seed, two_phi = TRUE
   ),
   bpfc_em = {
     if (!nzchar(source_dir)) {

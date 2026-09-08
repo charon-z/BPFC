@@ -13,7 +13,7 @@ ablations, convergence) and the real-data workflow.
 | `01_run_simulations.R` | runs 1A / 1B / 1C / 1D, one checkpointed `.rds` per cell |
 | `02_make_tables.R` | mean±SD + median[IQR] tables and paired Wilcoxon tests |
 | `03_make_figures.R` | boxplots, init-sensitivity, ablation, mirror mechanism, traces |
-| `04_real_data_analysis.R` | BIC → clustering → mean curves → module network on real/example data |
+| `04_real_data_analysis.R` | BIC → clustering → mean curves → diagnostics → module network; includes the manuscript mouse data |
 | `run_full.sh` | bounded-parallel, resumable launcher for the whole study |
 
 ## Experiments
@@ -40,6 +40,10 @@ export MCG_ROOT=/path/to/project        # contains benchmark/data/sim_truth_K*.r
 bash BPFC/inst/reproduce/run_full.sh 3      # 3 parallel workers
 Rscript BPFC/inst/reproduce/02_make_tables.R
 Rscript BPFC/inst/reproduce/03_make_figures.R
+
+# Manuscript mouse fit: bundled 11833 x 32 matrix, J=15, 30000 iterations,
+# separate State-1 phi and State-2 psi (run inside tmux/nohup on a server).
+MCG_DATASET=mouse Rscript BPFC/inst/reproduce/04_real_data_analysis.R
 ```
 
 Scale is set inside `run_full.sh` (and overridable via `MCG_R` / `MCG_NITER`).
@@ -47,3 +51,10 @@ The committed defaults are tuned to finish overnight on a 16 GB machine; for the
 as-published R = 50 / niter = 8000 setting, raise those literals on a larger
 host. All cells are seeded (`mcg_seed()`) and checkpointed, so runs are
 deterministic and resumable. Outputs land in `results/reproduce/`.
+
+The analysis-ready mouse matrix is bundled in `inst/extdata/mouse/`, together
+with provenance, dimensions, and SHA-256 checksums. The dedicated mouse command
+uses the manuscript settings and writes the fitted object, BIC, cluster
+assignments, posterior mean curves, parameter diagnostics, and module network
+to `results/reproduce/real/`. The saved fit is the common input for the
+manuscript's mouse module and convergence figures.

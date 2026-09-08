@@ -6,7 +6,7 @@
 \alias{BPFC-package}
 \title{BPFC: Bayesian MCMC Functional Clustering for Paired Longitudinal Data}
 \description{
-Bayesian finite mixture clustering of paired (K = 2) longitudinal trajectories. Each feature carries two individuals' time courses that are clustered jointly through a shared cluster label and a cluster-specific paired Legendre-polynomial mean curve. Within-individual residual correlation is modelled by a structured antedependence (SAD) covariance with a single shared time-correlation parameter. Inference is run with the 'nimble' MCMC engine (Gibbs plus slice samplers), and label switching is resolved by an ECR-style relabeling step before posterior summaries and BIC model selection.
+Bayesian finite mixture clustering of paired (K = 2) longitudinal trajectories. Each feature carries two individuals' time courses that are clustered jointly through a shared cluster label and a cluster-specific paired Legendre-polynomial mean curve. Within-individual residual correlation is modelled by a block-diagonal structured antedependence (SAD) covariance with a separate correlation-decay parameter for each state. A restricted shared-parameter special case is also available. Inference is run with the 'nimble' MCMC engine (Gibbs plus slice samplers), and label switching is resolved by an ECR-style relabeling step before posterior summaries and BIC model selection.
 }
 \seealso{
 Useful links:

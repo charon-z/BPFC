@@ -16,7 +16,7 @@ run_mcmc_binary(
   priors = list(alpha_v = 1, beta_v = 1, mu_phi = 0.25, eta_phi = 1, sigma_beta = 0.5),
   init = NULL,
   seed = 123,
-  two_phi = FALSE
+  two_phi = TRUE
 )
 }
 \arguments{
@@ -39,15 +39,16 @@ run_mcmc_binary(
 \item{priors}{list of prior settings (optional)}
 
 \item{init}{optional initialization list with \code{z}, or complete \code{z}, \code{beta},
-\code{v_sq}, \code{phi} and \code{p}. The default \code{NULL} keeps the original k-means
-initialization.}
+\code{v_sq}, \code{phi}, \code{psi} and \code{p}. The default \code{NULL} keeps the original
+k-means initialization. For the shared-correlation special case,
+\code{psi} is ignored.}
 
 \item{seed}{random seed}
 
-\item{two_phi}{logical. If \code{FALSE} (default), both states share a single
-SAD(1) time-correlation parameter \code{phi} (the special case phi = psi used
-for all reported analyses). If \code{TRUE}, fit the general model with a
-state-specific correlation parameter (\code{phi} for state 1, \code{psi} for state 2).}
+\item{two_phi}{logical. If \code{TRUE} (default), fit the paper's general model
+with a state-specific SAD(1) correlation parameter (\code{phi} for state 1,
+\code{psi} for state 2). Set to \code{FALSE} only to fit the restricted special case
+in which both states share \code{phi} (that is, phi = psi).}
 }
 \value{
 An object of class \code{mcmcgraph_result}: a list with \code{clustering} (MAP

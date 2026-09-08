@@ -12,13 +12,14 @@
 #' @param burnin_frac fraction discarded for z_mode (default 0.25)
 #' @param priors list of prior settings (optional)
 #' @param init optional initialization list with `z`, or complete `z`, `beta`,
-#'   `v_sq`, `phi` and `p`. The default `NULL` keeps the original k-means
-#'   initialization.
+#'   `v_sq`, `phi`, `psi` and `p`. The default `NULL` keeps the original
+#'   k-means initialization. For the shared-correlation special case,
+#'   `psi` is ignored.
 #' @param seed random seed
-#' @param two_phi logical. If `FALSE` (default), both states share a single
-#'   SAD(1) time-correlation parameter `phi` (the special case phi = psi used
-#'   for all reported analyses). If `TRUE`, fit the general model with a
-#'   state-specific correlation parameter (`phi` for state 1, `psi` for state 2).
+#' @param two_phi logical. If `TRUE` (default), fit the paper's general model
+#'   with a state-specific SAD(1) correlation parameter (`phi` for state 1,
+#'   `psi` for state 2). Set to `FALSE` only to fit the restricted special case
+#'   in which both states share `phi` (that is, phi = psi).
 #' @return An object of class `mcmcgraph_result`: a list with `clustering` (MAP
 #'   cluster label per feature), `cluster_counts`, `cluster_prob` (n x J
 #'   posterior cluster probabilities), `cluster_uncertainty` (1 - max posterior
@@ -47,11 +48,14 @@ run_mcmc_binary <- function(
     priors = list(alpha_v = 1, beta_v = 1, mu_phi = 0.25, eta_phi = 1, sigma_beta = 0.5),
     init = NULL,
     seed = 123,
-    two_phi = FALSE
+    two_phi = TRUE
 ) {
   .mcmcgraph_register_sad()
   format <- match.arg(format)
   if (!requireNamespace("nimble", quietly = TRUE)) stop("Package 'nimble' is required.")
+  if (!is.logical(two_phi) || length(two_phi) != 1L || is.na(two_phi)) {
+    stop("two_phi must be TRUE or FALSE.", call. = FALSE)
+  }
 
   set.seed(seed)
 
@@ -83,11 +87,9 @@ run_mcmc_binary <- function(
   .mcmcgraph_register_sad()
 
   # model code (P fixed=10, but we keep P for safety).
-  # two_phi = FALSE (default): a single time-correlation parameter phi shared by
-  #   both states (paper Section 2.3 special case phi = psi); reproduces all
-  #   results reported in the manuscript.
-  # two_phi = TRUE: the general SAD(1) model with a state-specific correlation
-  #   parameter (phi for state 1, psi for state 2) via dSADmvnorm2.
+  # two_phi = TRUE (default): the general SAD(1) model in the Methods, with phi
+  #   for state 1 and psi for state 2, via dSADmvnorm2.
+  # two_phi = FALSE: the restricted special case phi = psi.
   if (!two_phi) {
     modelCode <- nimble::nimbleCode({
       for (j in 1:J) alpha[j] <- 1
@@ -189,7 +191,11 @@ run_mcmc_binary <- function(
   inits_full <- validate_initialization_binary(init, y, J, Z0_binary)
   init_method <- if (is.null(init)) "kmeans" else if (!is.null(init$method)) init$method else "user"
   inits <- inits_full[c("z", "beta", "v_sq", "phi", "p")]
-  if (two_phi) inits$psi <- inits$phi   # initialize state-2 correlation at the state-1 value
+  if (two_phi) {
+    inits$psi <- inits_full$psi
+  } else {
+    inits$phi <- mean(c(inits_full$phi, inits_full$psi))
+  }
 
   # build model
   model <- nimble::nimbleModel(

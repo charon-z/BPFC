@@ -32,8 +32,9 @@ fit_many_J <- function(x, J_grid = 2:6, ...) {
 #' Compute BIC from a fitted object (posterior mean plug-in)
 #'
 #' Uses the relabeled posterior means stored on the fit (so the plug-in is not
-#' corrupted by label switching). The two individuals share a single SAD
-#' time-correlation parameter phi (paper 2.3).
+#' corrupted by label switching). The likelihood and parameter count follow
+#' the fitted covariance model: state-specific `phi`/`psi` by default, or the
+#' restricted shared-`phi` special case when `two_phi = FALSE`.
 #'
 #' @param fit mcmcgraph_result
 #' @param x original input data (same used in fitting)
@@ -62,14 +63,22 @@ eval_bic <- function(fit, x, format = c("auto","wide","long")) {
   # relabeled posterior-mean plug-in estimates
   pm <- fit$posterior_mean
   phi_hat  <- as.numeric(pm$phi)
+  two_phi <- isTRUE(fit$model_info$two_phi)
+  psi_hat <- if (two_phi) as.numeric(pm$psi) else phi_hat
+  if (length(phi_hat) != 1L || !is.finite(phi_hat)) {
+    stop("fit$posterior_mean$phi must be a finite scalar.", call. = FALSE)
+  }
+  if (length(psi_hat) != 1L || !is.finite(psi_hat)) {
+    stop("A finite posterior mean for psi is required when two_phi = TRUE.", call. = FALSE)
+  }
   p_hat    <- pmax(as.numeric(pm$p), 1e-12); p_hat <- p_hat / sum(p_hat)
   v_hat    <- pmax(as.numeric(pm$v_sq), 1e-8)
   beta_hat <- pm$beta                       # J x P
 
   mu_mat <- beta_hat %*% t(Z0_binary)       # J x d
 
-  # log density for the 2-block SAD recursion with a single shared phi
-  dSAD_log_2block <- function(xi, mean, v_sq, phi, d_single) {
+  # log density for the two state-specific SAD recursions
+  dSAD_log_2block <- function(xi, mean, v_sq, phi, psi, d_single) {
     q <- 0
     s <- 0
     for (t in 1:d_single) {
@@ -78,7 +87,7 @@ eval_bic <- function(fit, x, format = c("auto","wide","long")) {
     }
     s <- 0
     for (t in (d_single + 1):(2 * d_single)) {
-      s <- (xi[t] - mean[t]) + phi * s
+      s <- (xi[t] - mean[t]) + psi * s
       q <- q + (s * s) / v_sq[t] + log(2 * pi * v_sq[t])
     }
     -0.5 * q
@@ -89,15 +98,16 @@ eval_bic <- function(fit, x, format = c("auto","wide","long")) {
     yi <- as.numeric(y[i, ])
     log_comp <- numeric(J)
     for (j in 1:J) {
-      logf <- dSAD_log_2block(yi, mu_mat[j, ], v_hat, phi_hat, d_single)
+      logf <- dSAD_log_2block(yi, mu_mat[j, ], v_hat, phi_hat, psi_hat, d_single)
       log_comp[j] <- log(p_hat[j]) + logf
     }
     loglik <- loglik + log_sum_exp(log_comp)
   }
 
   # free parameters (fixed order = 4, K = 2):
-  # beta: J*P, v_sq: 2*d_single, phi: 1 (shared), mixing weights: J-1
-  k <- J * P + d + 1 + (J - 1)
+  # beta: J*P, v_sq: 2*d_single, correlations: 2 (general) or 1
+  # (restricted shared special case), mixing weights: J-1
+  k <- J * P + d + (if (two_phi) 2 else 1) + (J - 1)
   bic <- -2 * loglik + k * log(n)
   data.frame(J = J, loglik = loglik, BIC = bic)
 }

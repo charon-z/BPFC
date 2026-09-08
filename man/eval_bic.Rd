@@ -18,8 +18,9 @@ data.frame with J, loglik, BIC
 }
 \description{
 Uses the relabeled posterior means stored on the fit (so the plug-in is not
-corrupted by label switching). The two individuals share a single SAD
-time-correlation parameter phi (paper 2.3).
+corrupted by label switching). The likelihood and parameter count follow
+the fitted covariance model: state-specific \code{phi}/\code{psi} by default, or the
+restricted shared-\code{phi} special case when \code{two_phi = FALSE}.
 }
 \examples{
 \donttest{

@@ -55,7 +55,8 @@ run_1A_cell <- function(K, rep) {
 
   # MCMC (published function), single kmeans init
   fit <- BPFC::run_mcmc_binary(Y, J = K, times = par$times,
-                                    niter = MCG_NITER, thin = 1, seed = seed)
+                                niter = MCG_NITER, thin = 1, seed = seed,
+                                two_phi = TRUE)
   rows[["mcmc"]] <- row_of(K, rep, "MCMC", "joint",
                            mcg_metrics(zt, fit$clustering), seed)
 

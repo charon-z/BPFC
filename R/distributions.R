@@ -1,9 +1,8 @@
 # distributions.R
-# Custom two-block SAD(1) distribution for paired (K = 2) data: density + RNG.
-# Both blocks (the two individuals) share a single time-correlation parameter
-# `phi`, while each time point keeps its own innovation variance `v_sq`
-# (see paper Section 2.3). Not exported, but must exist as a package object so
-# nimble can resolve it by name.
+# Custom two-block SAD(1) distributions for paired (K = 2) data: density + RNG.
+# dSADmvnorm2 is the paper's general model (phi for state 1, psi for state 2).
+# dSADmvnorm retains the restricted shared-correlation special case. These are
+# not exported, but must exist as package objects so nimble can resolve them.
 
 #' @keywords internal
 dSADmvnorm <- nimble::nimbleFunction(
@@ -97,9 +96,8 @@ rSADmvnorm <- nimble::nimbleFunction(
 
 # ---------------------------------------------------------------------------
 # Two-parameter variant: block 1 (individual 1) uses `phi`, block 2 uses `psi`.
-# Selected via run_mcmc_binary(two_phi = TRUE). The shared-phi dSADmvnorm above
-# is the special case phi = psi and remains the default; all results reported
-# in the manuscript use that default. (paper Section 2.3, general model)
+# Selected by default via run_mcmc_binary(two_phi = TRUE). The shared-phi
+# dSADmvnorm above is retained only as the optional special case phi = psi.
 # ---------------------------------------------------------------------------
 
 #' @keywords internal
