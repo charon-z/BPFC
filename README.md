@@ -21,11 +21,12 @@ clusters the two trajectories **jointly**:
   `psi` (State 2), each truncated to `(-1, 1)`, and time-point-specific
   innovation variances `v_sq`.
 
-Inference uses Gibbs and slice samplers via `nimble`. Label switching is
-resolved with an ECR-style relabeling step before computing MAP cluster labels
-and posterior cluster probabilities. A sparse overfitted finite mixture can
-infer a working module resolution from one MCMC fit; repeated fixed-J fits and
-BIC remain available as a supplementary cross-check.
+Inference uses a hybrid MCMC scheme combining categorical/conjugate updates,
+slice sampling, and adaptive block random-walk Metropolis updates via `NIMBLE`.
+Label switching is resolved with an ECR-style relabeling step before computing
+MAP cluster labels and posterior cluster probabilities. A sparse overfitted
+finite mixture can infer a working module resolution from one MCMC fit;
+repeated fixed-J fits and BIC remain available as a supplementary cross-check.
 
 ## Installation
 
