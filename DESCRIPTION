@@ -1,6 +1,6 @@
 Package: BPFC
 Title: Bayesian MCMC Functional Clustering for Paired Longitudinal Data
-Version: 0.1.2
+Version: 0.1.3
 Authors@R:
     person("Ruiqi", "Zhao", email = "karongzrq@163.com", role = c("aut", "cre"))
 Author: Ruiqi Zhao [aut, cre]
@@ -14,7 +14,9 @@ Description: Bayesian finite mixture clustering of paired (K = 2) longitudinal
     state. A restricted shared-parameter special case is also available.
     Inference is run with the 'nimble' MCMC engine (Gibbs plus slice samplers),
     and label switching is resolved by an ECR-style relabeling step before
-    posterior summaries and BIC model selection.
+    posterior summaries. A sparse overfitted finite mixture estimates a working
+    module resolution from one MCMC fit; repeated fixed-component fits and BIC
+    are available as a supplementary cross-check.
 License: MIT + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)

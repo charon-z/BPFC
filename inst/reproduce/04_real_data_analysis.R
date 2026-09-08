@@ -2,7 +2,7 @@
 # 04_real_data_analysis.R -------------------------------------------------
 # End-to-end real-data workflow with the published BPFC functions:
 #   1. load a paired longitudinal matrix (n x 2d)
-#   2. BIC-based selection of the number of clusters J  (fit_many_J / eval_bic)
+#   2. supplementary BIC cross-check over fixed-J fits (fit_many_J / eval_bic)
 #   3. final clustering at the selected J
 #   4. cluster mean-curve table + posterior cluster probabilities
 #   5. trace/density diagnostics for key parameters
@@ -15,7 +15,8 @@
 #   "smillie"           : Smillie UC pseudobulk (if present)
 # The analysis-ready mouse matrix is bundled under inst/extdata/mouse. Its
 # provenance and checksum are documented there. The mouse defaults reproduce
-# the manuscript fit (J = 15, 30000 iterations, separate phi/psi).
+# the manuscript fixed-J fit (J = 15, 30000 iterations, separate phi/psi).
+# See 05_overfitted_selection.R for the distinct one-run J_max procedure.
 
 suppressPackageStartupMessages(library(BPFC))
 src_dir <- if (nzchar(Sys.getenv("MCG_LIB_DIR"))) Sys.getenv("MCG_LIB_DIR") else

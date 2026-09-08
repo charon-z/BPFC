@@ -10,7 +10,9 @@
 #' @param thin thinning
 #' @param n_batch batch count to allow checkpoints outside package
 #' @param burnin_frac fraction discarded for z_mode (default 0.25)
-#' @param priors list of prior settings (optional)
+#' @param priors list of prior settings (optional). `e0` is the symmetric
+#'   Dirichlet concentration for the mixing proportions. The fixed-J default is
+#'   `e0 = 1`; [run_overfitted_binary()] supplies a sparse value by default.
 #' @param init optional initialization list with `z`, or complete `z`, `beta`,
 #'   `v_sq`, `phi`, `psi` and `p`. The default `NULL` keeps the original
 #'   k-means initialization. For the shared-correlation special case,
@@ -45,7 +47,8 @@ run_mcmc_binary <- function(
     thin = 1,
     n_batch = 5L,
     burnin_frac = 0.25,
-    priors = list(alpha_v = 1, beta_v = 1, mu_phi = 0.25, eta_phi = 1, sigma_beta = 0.5),
+    priors = list(alpha_v = 1, beta_v = 1, mu_phi = 0.25, eta_phi = 1,
+                  sigma_beta = 0.5, e0 = 1),
     init = NULL,
     seed = 123,
     two_phi = TRUE
@@ -71,12 +74,29 @@ run_mcmc_binary <- function(
   Z0_binary <- make_Z0_binary(times_single)
   P <- ncol(Z0_binary)   # 10
 
-  # priors
+  # priors. Fill omitted entries so older calls supplying a partial prior list
+  # continue to work after adding the sparse-mixture concentration e0.
+  if (!is.list(priors)) stop("priors must be a list.", call. = FALSE)
+  prior_defaults <- list(
+    alpha_v = 1, beta_v = 1, mu_phi = 0.25, eta_phi = 1,
+    sigma_beta = 0.5, e0 = 1
+  )
+  for (nm in names(prior_defaults)) {
+    if (is.null(priors[[nm]])) priors[[nm]] <- prior_defaults[[nm]]
+  }
   alpha_v <- priors$alpha_v
   beta_v  <- priors$beta_v
   mu_phi  <- priors$mu_phi
   eta_phi <- priors$eta_phi
+  e0 <- priors$e0
   sigma_beta <- rep(priors$sigma_beta, P)
+  positive_priors <- c(alpha_v = alpha_v, beta_v = beta_v,
+                       eta_phi = eta_phi, sigma_beta = priors$sigma_beta,
+                       e0 = e0)
+  if (any(!is.finite(positive_priors)) || any(positive_priors <= 0)) {
+    stop("alpha_v, beta_v, eta_phi, sigma_beta and e0 must be positive finite values.",
+         call. = FALSE)
+  }
 
   # mu_beta from global mean curve
   XTX <- crossprod(Z0_binary)
@@ -92,7 +112,7 @@ run_mcmc_binary <- function(
   # two_phi = FALSE: the restricted special case phi = psi.
   if (!two_phi) {
     modelCode <- nimble::nimbleCode({
-      for (j in 1:J) alpha[j] <- 1
+      for (j in 1:J) alpha[j] <- e0
       p[1:J] ~ ddirch(alpha[1:J])
 
       for (j in 1:J) {
@@ -129,7 +149,7 @@ run_mcmc_binary <- function(
     })
   } else {
     modelCode <- nimble::nimbleCode({
-      for (j in 1:J) alpha[j] <- 1
+      for (j in 1:J) alpha[j] <- e0
       p[1:J] ~ ddirch(alpha[1:J])
 
       for (j in 1:J) {
@@ -180,6 +200,7 @@ run_mcmc_binary <- function(
     beta_v  = beta_v,
     mu_phi = mu_phi,
     eta_phi = eta_phi,
+    e0 = e0,
     sigma_beta = sigma_beta,
     mu_beta = mu_beta
   )
@@ -357,7 +378,7 @@ run_mcmc_binary <- function(
       J = J, n = n, d_single = d_single, d_binary = d,
       order = 4L, P = P,
       niter = niter, thin = thin, burnin_frac = burnin_frac,
-      init_method = init_method, two_phi = two_phi
+      init_method = init_method, two_phi = two_phi, e0 = e0
     ),
     data_info = list(
       times_single = times_single,

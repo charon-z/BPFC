@@ -22,8 +22,10 @@ clusters the two trajectories **jointly**:
   innovation variances `v_sq`.
 
 Inference uses Gibbs and slice samplers via `nimble`. Label switching is
-resolved with an ECR-style relabeling step before computing MAP cluster labels,
-posterior cluster probabilities and BIC-based model selection.
+resolved with an ECR-style relabeling step before computing MAP cluster labels
+and posterior cluster probabilities. A sparse overfitted finite mixture can
+infer a working module resolution from one MCMC fit; repeated fixed-J fits and
+BIC remain available as a supplementary cross-check.
 
 ## Installation
 
@@ -83,7 +85,39 @@ plot_trace_density(fit, params = c("^phi", "^psi", "^p\\["))
 plot_mixing_trace(fit)
 ```
 
-## Choosing the number of clusters (BIC)
+## Choosing the number of clusters in one run
+
+`run_overfitted_binary()` makes the manuscript's overfitted-mixture procedure
+explicit. It fits exactly one model at `J_max`, computes the posterior of the
+occupied-component count, sorts the posterior-mean component weights, and
+selects the smallest number reaching the stated cumulative-mass threshold.
+The default 90% rule is explicit and can be changed; no value of K is hard-coded.
+
+```r
+overfit <- run_overfitted_binary(
+  example_binary$y,
+  J_max = 6,
+  e0 = 0.02,
+  mass_threshold = 0.90,
+  times = example_binary$times,
+  niter = 3000
+)
+
+overfit$selected_K        # working resolution from sorted posterior mass
+overfit$K_occ_mode        # posterior mode of occupied components
+overfit$occupied_posterior
+overfit$component_spectrum
+plot_overfitted_selection(overfit)
+```
+
+The full `J_max` fit is retained as `overfit$fit`. The top-level clustering is
+computed from that same run after restricting posterior assignment
+probabilities to the selected dominant components.
+
+### Supplementary fixed-J BIC cross-check
+
+`fit_many_J()` is deliberately separate: it refits each candidate J and must
+not be described as the one-run overfitted-mixture procedure.
 
 ```r
 res <- fit_many_J(example_binary$y, J_grid = 2:6,
@@ -117,6 +151,8 @@ plot_bic(res$eval)  # BIC vs J
 | Function | Purpose |
 |----------|---------|
 | `run_mcmc_binary()` | Fit the Bayesian SAD-MCMC functional clustering at a fixed J |
+| `run_overfitted_binary()` | Infer a working module resolution from one sparse overfitted-mixture MCMC run |
+| `plot_overfitted_selection()` | Plot occupied-count, sorted-weight and cumulative-mass diagnostics |
 | `as_binary_data()` | Coerce wide (`n x 2d`) or long data into the required format |
 | `eval_bic()` | Posterior-mean plug-in BIC for a fitted object |
 | `fit_many_J()` | Sweep a grid of J and return fits + a BIC table |
@@ -142,9 +178,11 @@ MCG_R=5 MCG_NITER=3000 bash BPFC/inst/reproduce/run_full.sh 6
 # then build tables and figures:
 Rscript BPFC/inst/reproduce/02_make_tables.R
 Rscript BPFC/inst/reproduce/03_make_figures.R
-# real-data workflow (BIC -> clustering -> module network):
+# fixed-J/BIC real-data workflow (supplementary cross-check):
 Rscript BPFC/inst/reproduce/04_real_data_analysis.R   # bundled toy example
 MCG_DATASET=mouse Rscript BPFC/inst/reproduce/04_real_data_analysis.R
+# one-run overfitted-mixture selection (J_max=25, e0=.02 for mouse):
+MCG_DATASET=mouse Rscript BPFC/inst/reproduce/05_overfitted_selection.R
 ```
 
 Simulation data are regenerated deterministically from the stored scenario

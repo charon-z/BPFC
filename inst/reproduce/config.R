@@ -1,6 +1,6 @@
 # config.R ----------------------------------------------------------------
 # Shared configuration for the BPFC reproduce suite. All driver scripts
-# (01-04) source this first. Paths are resolved relative to the project root,
+# (01-05) source this first. Paths are resolved relative to the project root,
 # which is taken from the environment variable MCG_ROOT or, failing that, the
 # current working directory.
 

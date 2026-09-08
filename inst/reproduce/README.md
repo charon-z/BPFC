@@ -13,7 +13,8 @@ ablations, convergence) and the real-data workflow.
 | `01_run_simulations.R` | runs 1A / 1B / 1C / 1D, one checkpointed `.rds` per cell |
 | `02_make_tables.R` | mean±SD + median[IQR] tables and paired Wilcoxon tests |
 | `03_make_figures.R` | boxplots, init-sensitivity, ablation, mirror mechanism, traces |
-| `04_real_data_analysis.R` | BIC → clustering → mean curves → diagnostics → module network; includes the manuscript mouse data |
+| `04_real_data_analysis.R` | fixed-J/BIC cross-check → clustering → mean curves → diagnostics → module network; includes the manuscript mouse data |
+| `05_overfitted_selection.R` | one sparse `J_max` MCMC fit → occupied-count posterior → sorted component mass → working resolution |
 | `run_full.sh` | bounded-parallel, resumable launcher for the whole study |
 
 ## Experiments
@@ -44,6 +45,10 @@ Rscript BPFC/inst/reproduce/03_make_figures.R
 # Manuscript mouse fit: bundled 11833 x 32 matrix, J=15, 30000 iterations,
 # separate State-1 phi and State-2 psi (run inside tmux/nohup on a server).
 MCG_DATASET=mouse Rscript BPFC/inst/reproduce/04_real_data_analysis.R
+
+# Manuscript one-run overfitted mixture: J_max=25, e0=.02, 90% mass rule,
+# 30000 iterations. Run inside tmux/nohup on a server.
+MCG_DATASET=mouse Rscript BPFC/inst/reproduce/05_overfitted_selection.R
 ```
 
 Scale is set inside `run_full.sh` (and overridable via `MCG_R` / `MCG_NITER`).
@@ -53,8 +58,9 @@ host. All cells are seeded (`mcg_seed()`) and checkpointed, so runs are
 deterministic and resumable. Outputs land in `results/reproduce/`.
 
 The analysis-ready mouse matrix is bundled in `inst/extdata/mouse/`, together
-with provenance, dimensions, and SHA-256 checksums. The dedicated mouse command
-uses the manuscript settings and writes the fitted object, BIC, cluster
-assignments, posterior mean curves, parameter diagnostics, and module network
-to `results/reproduce/real/`. The saved fit is the common input for the
-manuscript's mouse module and convergence figures.
+with provenance, dimensions, and SHA-256 checksums. The fixed-J mouse command
+writes the fitted object, BIC, cluster assignments, posterior mean curves,
+parameter diagnostics, and module network to `results/reproduce/real/`. The
+overfitted command writes the complete `J_max` fit, occupied-count posterior,
+sorted component spectrum, selected dominant clustering, and three-panel
+selection diagnostic to `results/reproduce/overfitted/`.

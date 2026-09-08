@@ -2,7 +2,7 @@
 % Please edit documentation in R/bic_eval.R
 \name{fit_many_J}
 \alias{fit_many_J}
-\title{Fit multiple J values and return BIC table}
+\title{Refit multiple fixed-J models and return a BIC table}
 \usage{
 fit_many_J(x, J_grid = 2:6, ...)
 }
@@ -17,7 +17,10 @@ fit_many_J(x, J_grid = 2:6, ...)
 list(fits, eval) where eval is data.frame(J,BIC,loglik)
 }
 \description{
-Fit multiple J values and return BIC table
+This is a supplementary model-selection diagnostic. It performs one
+independent \code{\link[=run_mcmc_binary]{run_mcmc_binary()}} fit for every value in \code{J_grid}; it is not
+the manuscript's single-run overfitted-mixture procedure. Use
+\code{\link[=run_overfitted_binary]{run_overfitted_binary()}} for that analysis.
 }
 \examples{
 \donttest{

@@ -1,4 +1,9 @@
-#' Fit multiple J values and return BIC table
+#' Refit multiple fixed-J models and return a BIC table
+#'
+#' This is a supplementary model-selection diagnostic. It performs one
+#' independent [run_mcmc_binary()] fit for every value in `J_grid`; it is not
+#' the manuscript's single-run overfitted-mixture procedure. Use
+#' [run_overfitted_binary()] for that analysis.
 #'
 #' @param x input data (wide/long)
 #' @param J_grid integer vector of candidate J

@@ -1,3 +1,18 @@
+# BPFC 0.1.3
+
+- Added `run_overfitted_binary()`, which performs one sparse finite-mixture fit
+  at `J_max` and implements the manuscript's occupied-component posterior,
+  sorted posterior-mean weights, cumulative-mass resolution, and dominant
+  clustering without a fixed-J grid search.
+- Added `plot_overfitted_selection()` and a full mouse/example reproduction
+  driver for the one-run selection analysis.
+- Made the symmetric Dirichlet concentration `e0` configurable in
+  `run_mcmc_binary()`; fixed-J fits retain `e0 = 1`, while the overfitted helper
+  defaults to the manuscript sparse setting `e0 = 0.02`.
+- Clarified throughout the documentation that `fit_many_J()` is repeated
+  fixed-J fitting for a supplementary BIC cross-check, not the single-run
+  overfitted-mixture method.
+
 # BPFC 0.1.2
 
 - Restored the manuscript model as the default: State 1 and State 2 now use

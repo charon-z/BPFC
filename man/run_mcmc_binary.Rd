@@ -13,7 +13,8 @@ run_mcmc_binary(
   thin = 1,
   n_batch = 5L,
   burnin_frac = 0.25,
-  priors = list(alpha_v = 1, beta_v = 1, mu_phi = 0.25, eta_phi = 1, sigma_beta = 0.5),
+  priors = list(alpha_v = 1, beta_v = 1, mu_phi = 0.25, eta_phi = 1, sigma_beta = 0.5, e0
+    = 1),
   init = NULL,
   seed = 123,
   two_phi = TRUE
@@ -36,7 +37,9 @@ run_mcmc_binary(
 
 \item{burnin_frac}{fraction discarded for z_mode (default 0.25)}
 
-\item{priors}{list of prior settings (optional)}
+\item{priors}{list of prior settings (optional). \code{e0} is the symmetric
+Dirichlet concentration for the mixing proportions. The fixed-J default is
+\code{e0 = 1}; \code{\link[=run_overfitted_binary]{run_overfitted_binary()}} supplies a sparse value by default.}
 
 \item{init}{optional initialization list with \code{z}, or complete \code{z}, \code{beta},
 \code{v_sq}, \code{phi}, \code{psi} and \code{p}. The default \code{NULL} keeps the original
