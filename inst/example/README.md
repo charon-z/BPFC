@@ -1,0 +1,1 @@
+The example TSV and data(example_binary) are unchanged historical data with concatenated columns. Use layout="concat" with their original times. They are not newly generated bivariate SAD(1) observations. Use simulate_bpfc() with explicit generating parameters for future Method2 simulations. The old generator is archived outside this package.

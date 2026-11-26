@@ -2,75 +2,57 @@
 % Please edit documentation in R/run_mcmc_graph.R
 \name{run_mcmc_binary}
 \alias{run_mcmc_binary}
-\title{Run Bayesian MCMC functional clustering for binary (K=2) longitudinal data}
+\title{Fit the bivariate SAD(1) paired finite mixture in Method2}
 \usage{
 run_mcmc_binary(
   x,
   J,
   format = c("auto", "wide", "long"),
   times = NULL,
-  niter = 3000,
-  thin = 1,
-  n_batch = 5L,
+  layout = c("interleaved", "concat"),
+  niter = 3000L,
+  thin = 1L,
   burnin_frac = 0.25,
-  priors = list(alpha_v = 1, beta_v = 1, mu_phi = 0.25, eta_phi = 1, sigma_beta = 0.5, e0
-    = 1),
+  priors,
   init = NULL,
-  seed = 123,
-  two_phi = TRUE
+  seed = 123L
 )
 }
 \arguments{
-\item{x}{data (matrix/data.frame). Wide: n x 2d with concat layout. Long: columns id/ind/time/y.}
+\item{x}{Paired data accepted by \code{\link[=as_binary_data]{as_binary_data()}}.}
 
-\item{J}{number of clusters}
+\item{J}{Fixed component count, between one and the number of features.}
 
-\item{format}{"auto" | "wide" | "long"}
+\item{format}{Input format.}
 
-\item{times}{optional numeric vector length d (for basis scaling)}
+\item{times}{Original observation times; required for wide data.}
 
-\item{niter}{total iterations}
+\item{layout}{Wide input order; select concat explicitly for old BPFC data.}
 
-\item{thin}{thinning}
+\item{niter}{Total iterations including burn-in.}
 
-\item{n_batch}{batch count to allow checkpoints outside package}
+\item{thin}{Posterior thinning interval, applied after burn-in.}
 
-\item{burnin_frac}{fraction discarded for z_mode (default 0.25)}
+\item{burnin_frac}{Fraction of iterations discarded; default 25 percent.}
 
-\item{priors}{list of prior settings (optional). \code{e0} is the symmetric
-Dirichlet concentration for the mixing proportions. The fixed-J default is
-\code{e0 = 1}; \code{\link[=run_overfitted_binary]{run_overfitted_binary()}} supplies a sparse value by default.}
+\item{priors}{Named list: alpha (scalar or J), beta_mean (length 10 or
+J by 10), beta_cov (10 by 10 or J by 10 by 10), a_v,b_v,a_u,b_u
+(scalar or T), mu_phi,var_phi,mu_psi,var_psi (scalars shared within
+each prior family), a_lambda,b_lambda (scalar or length 2). Gamma uses shape/rate; inverse-Gamma has density
+proportional to x^(-a-1)*exp(-b/x). ALL settings must be supplied
+explicitly: Method2 specifies prior families but no numerical values.}
 
-\item{init}{optional initialization list with \code{z}, or complete \code{z}, \code{beta},
-\code{v_sq}, \code{phi}, \code{psi} and \code{p}. The default \code{NULL} keeps the original
-k-means initialization. For the shared-correlation special case,
-\code{psi} is ignored.}
+\item{init}{Optional list; z alone is sufficient. Complete or partial
+overrides may include beta, p, v_sq, u_sq, phi, psi, lambda.}
 
-\item{seed}{random seed}
-
-\item{two_phi}{logical. If \code{TRUE} (default), fit the paper's general model
-with a state-specific SAD(1) correlation parameter (\code{phi} for state 1,
-\code{psi} for state 2). Set to \code{FALSE} only to fit the restricted special case
-in which both states share \code{phi} (that is, phi = psi).}
+\item{seed}{Random seed.}
 }
 \value{
-An object of class \code{mcmcgraph_result}: a list with \code{clustering} (MAP
-cluster label per feature), \code{cluster_counts}, \code{cluster_prob} (n x J
-posterior cluster probabilities), \code{cluster_uncertainty} (1 - max posterior
-probability), \code{posterior_mean} (list of \code{beta}, \code{p}, \code{v_sq}, \code{phi}, \code{psi}),
-\code{posterior_samples} (post-burn-in, relabeled draws of \code{phi}, \code{psi}, \code{p},
-\code{v_sq}, \code{beta}, \code{z} and \code{all_params}; \code{psi} is \code{NULL} unless \code{two_phi}),
-\code{model_info} and \code{data_info}.
+mcmcgraph_result with ECR-aligned samples, full posterior assignment
+probabilities, confidence, paired posterior mean trajectories, covariance,
+sampler configuration and numerical diagnostics. Short runs verify software
+operation and do not establish convergence.
 }
 \description{
-Input can be wide (n x 2d) or long (id/ind/time/y). K is fixed at 2 and order fixed at 4.
-}
-\examples{
-\donttest{
-data(example_binary)
-fit <- run_mcmc_binary(example_binary$y, J = 3, times = example_binary$times,
-                       niter = 300, seed = 1)
-table(fit$clustering)
-head(fit$cluster_prob)
-}
+Fit the bivariate SAD(1) paired finite mixture in Method2
 }

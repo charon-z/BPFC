@@ -2,31 +2,20 @@
 % Please edit documentation in R/bic_eval.R
 \name{fit_many_J}
 \alias{fit_many_J}
-\title{Refit multiple fixed-J models and return a BIC table}
+\title{Refit a grid of fixed-J models for supplementary BIC comparison}
 \usage{
 fit_many_J(x, J_grid = 2:6, ...)
 }
 \arguments{
-\item{x}{input data (wide/long)}
+\item{x}{Paired observations.}
 
-\item{J_grid}{integer vector of candidate J}
+\item{J_grid}{Positive integer component counts.}
 
-\item{...}{passed to run_mcmc_binary (e.g., niter, thin)}
+\item{...}{Arguments to \code{\link[=run_mcmc_binary]{run_mcmc_binary()}}.}
 }
 \value{
-list(fits, eval) where eval is data.frame(J,BIC,loglik)
+List of fits and a table of posterior point-estimate BIC values.
 }
 \description{
-This is a supplementary model-selection diagnostic. It performs one
-independent \code{\link[=run_mcmc_binary]{run_mcmc_binary()}} fit for every value in \code{J_grid}; it is not
-the manuscript's single-run overfitted-mixture procedure. Use
-\code{\link[=run_overfitted_binary]{run_overfitted_binary()}} for that analysis.
-}
-\examples{
-\donttest{
-data(example_binary)
-res <- fit_many_J(example_binary$y, J_grid = 2:4,
-                  times = example_binary$times, niter = 300)
-res$eval
-}
+Refit a grid of fixed-J models for supplementary BIC comparison
 }

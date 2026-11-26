@@ -21,14 +21,6 @@
 #' @return Invisibly, a data frame containing the selected component numbers
 #'   and posterior means. Called primarily for its plotting side effect.
 #' @export
-#' @examples
-#' \donttest{
-#' data(example_binary)
-#' fit <- run_mcmc_binary(example_binary$y, J = 3,
-#'                        times = example_binary$times,
-#'                        niter = 300, seed = 1)
-#' plot_mixing_trace(fit)
-#' }
 plot_mixing_trace <- function(
     result,
     components = NULL,
@@ -90,6 +82,8 @@ plot_mixing_trace <- function(
   } else {
     iteration <- seq_len(nrow(selected))
   }
+
+  if (!is.null(model_info$retained_iterations)) iteration <- model_info$retained_iterations
 
   common_ylim <- range(selected)
   panel_rows <- ceiling(length(components) / ncol)
@@ -185,13 +179,6 @@ plot_mixing_trace <- function(
 #' @return (Invisibly) the character vector of parameter names that were
 #'   plotted. Called for its side effect of drawing trace and density panels.
 #' @export
-#' @examples
-#' \donttest{
-#' data(example_binary)
-#' fit <- run_mcmc_binary(example_binary$y, J = 3, times = example_binary$times,
-#'                        niter = 300, seed = 1)
-#' plot_trace_density(fit, params = c("^phi"))
-#' }
 plot_trace_density <- function(result, params = c("^phi", "^p\\["),
                                max_params = 6) {
   if (!inherits(result, "mcmcgraph_result")) stop("result must be from run_mcmc_binary().")

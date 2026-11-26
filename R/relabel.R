@@ -24,7 +24,7 @@
 #' Uses the contingency matrix `C[j, l]` = number of i with `z[i]` == j and
 #' `pivot[i]` == l; agreement(tau) = sum over j of `C[j, tau[j]]`. When the full
 #' permutation matrix PM (n_perm x J) is supplied the optimum is found by a
-#' vectorized exhaustive search; otherwise a greedy assignment is used (large J).
+#' vectorized exhaustive search; otherwise exact linear-sum assignment is used.
 #' @keywords internal
 #' @noRd
 .best_perm <- function(z_row, pivot, J, PM = NULL) {
@@ -37,17 +37,7 @@
     return(PM[which.max(scores), ])
   }
 
-  # greedy fallback (J too large to enumerate): assign highest counts first
-  tau <- integer(J); used <- logical(J)
-  ord <- order(as.numeric(C), decreasing = TRUE)
-  for (idx in ord) {
-    j <- ((idx - 1L) %% J) + 1L
-    l <- ((idx - 1L) %/% J) + 1L
-    if (tau[j] == 0L && !used[l]) { tau[j] <- l; used[l] <- TRUE }
-  }
-  miss_j <- which(tau == 0L); miss_l <- which(!used)
-  if (length(miss_j)) tau[miss_j] <- miss_l
-  tau
+  as.integer(clue::solve_LSAP(C, maximum = TRUE))
 }
 
 #' ECR relabeling. Returns the per-iteration permutations and the relabeled z.
@@ -59,7 +49,7 @@
 #' @noRd
 .relabel_ecr <- function(z_post, J, max_iter = 15L) {
   S <- nrow(z_post); n <- ncol(z_post)
-  PM <- if (J <= 8L) do.call(rbind, .all_perms(1:J)) else NULL  # enumerate when feasible
+  PM <- NULL  # Exact assignment avoids factorial enumeration.
 
   col_mode <- function(M) {
     apply(M, 2, function(col) {
@@ -68,7 +58,8 @@
     })
   }
 
-  pivot <- col_mode(z_post)
+  # Start from an actual allocation, not a potentially collapsed marginal mode.
+  pivot <- as.integer(z_post[1L, ])
   perm_mat <- matrix(rep(1:J, each = S), nrow = S)  # identity by default
 
   for (it in seq_len(max_iter)) {
