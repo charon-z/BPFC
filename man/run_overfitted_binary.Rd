@@ -7,8 +7,8 @@
 run_overfitted_binary(
   x,
   J_max,
-  e0 = 0.02,
-  mass_threshold = 0.9,
+  e0,
+  mass_threshold,
   occupied_min_count = 1L,
   credible_prob = 0.95,
   ...
@@ -20,10 +20,10 @@ run_overfitted_binary(
 \item{J_max}{Integer upper bound on the number of mixture components.}
 
 \item{e0}{Positive symmetric Dirichlet concentration. Small values encourage
-redundant components to empty; the default reproduces the sparse setting
-used by the manuscript's overfitted-mixture analyses.}
+redundant components to empty. Required explicitly because Method2
+does not specify a numerical concentration.}
 
-\item{mass_threshold}{Number in \verb{(0, 1]}. The working resolution is the
+\item{mass_threshold}{Number in \verb{(0.5, 1]}. The working resolution is the
 smallest number of sorted posterior-mean component weights whose
 cumulative mass reaches this threshold.}
 
@@ -34,22 +34,23 @@ a component to count as occupied. The manuscript definition uses \code{1}.}
 of the occupied-component count.}
 
 \item{...}{Arguments passed to \code{\link[=run_mcmc_binary]{run_mcmc_binary()}}, such as \code{times}, \code{niter},
-\code{thin}, \code{burnin_frac}, \code{seed}, \code{two_phi}, and other prior settings through
+\code{thin}, \code{burnin_frac}, \code{seed}, \code{layout}, and other prior settings through
 \code{priors}. Supplying \code{J} is an error; use \code{J_max}.}
 }
 \value{
-An object of class \code{bpfc_overfit_result}. Important fields are
-\code{selected_K}, \code{K_occ_mode}, \code{K_occ_interval}, \code{occupied_posterior},
-\code{component_spectrum}, \code{clustering}, and \code{fit}. \code{fit} is the complete
-\code{J_max} \code{\link[=run_mcmc_binary]{run_mcmc_binary()}} result. \code{clustering} reassigns features to the
-retained dominant components using their conditional posterior
-probabilities and numbers them by decreasing posterior mean weight.
+A bpfc_overfit_result. selected_K is the mass-based working
+resolution; K_occ_mode summarizes Eq. 22. Full J_max posterior assignment
+probabilities and allocations are preserved as required by Eq. 20.
+dominant_components identifies the retained components; retained_probability
+reports each feature's probability mass in this subset. No tail feature is
+forced into a dominant component. mass_threshold is required because
+Method2 does not specify its numerical value. e0 must also be supplied.
 }
 \description{
 Fits one finite mixture at an upper bound \code{J_max} using a sparse symmetric
 Dirichlet prior. The post-burn-in draws are summarized by the posterior
 distribution of the occupied-component count and by the posterior-mean
-mixing proportions, matching Equations (20)--(23) of the accompanying
+mixing proportions, matching Equations (21)--(24) of the accompanying
 manuscript. No grid of fixed-J models is fitted by this function.
 }
 \details{
@@ -59,16 +60,4 @@ separately because a large dataset can assign a few observations to a
 negligible-weight component even under a sparse prior. The full \code{J_max} fit
 and both diagnostics are retained, so the selection is auditable rather
 than hidden behind a single number.
-}
-\examples{
-\donttest{
-data(example_binary)
-overfit <- run_overfitted_binary(
-  example_binary$y, J_max = 6, times = example_binary$times,
-  niter = 300, seed = 1
-)
-overfit$selected_K
-overfit$occupied_posterior
-plot_overfitted_selection(overfit)
-}
 }

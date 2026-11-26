@@ -2,12 +2,13 @@
 % Please edit documentation in R/utils.R
 \name{as_binary_data}
 \alias{as_binary_data}
-\title{Coerce user data into required binary wide format: n x (2d)}
+\title{Prepare complete paired observations in Method2 time order}
 \usage{
 as_binary_data(
   x,
   format = c("auto", "wide", "long"),
   times = NULL,
+  layout = c("interleaved", "concat"),
   id_col = "snp",
   ind_col = "ind",
   time_col = "time",
@@ -15,36 +16,23 @@ as_binary_data(
 )
 }
 \arguments{
-\item{x}{matrix/data.frame}
+\item{x}{Numeric wide matrix, or long data frame.}
 
-\item{format}{"auto" | "wide" | "long"}
+\item{format}{Input format, detected from long column names when auto.}
 
-\item{times}{optional numeric vector length d}
+\item{times}{Original nonnegative strictly increasing observation times.
+Required explicitly for wide input; never replaced by visit indices.}
 
-\item{id_col}{name of the feature-id column (long format only).}
+\item{layout}{Wide column order: interleaved (Eq. 1), or concat for old
+BPFC matrices with state1(all times), state2(all times).}
 
-\item{ind_col}{name of the individual column; must have exactly two levels
-(long format only).}
-
-\item{time_col}{name of the time column (long format only).}
-
-\item{value_col}{name of the value column (long format only).}
+\item{id_col, ind_col, time_col, value_col}{Long input column names. State
+order follows factor levels, or sorted character state names.}
 }
 \value{
-A list with \code{y} (the n x 2d wide numeric matrix), \code{d_single} (time
-points per individual) and \code{times_single} (the numeric time grid).
+List y (interleaved), d_single, times_single, state_levels,
+input_layout, format.
 }
 \description{
-Supported:
-\itemize{
-\item wide matrix/data.frame: n x (2d), ordered as ind1(t1..td), ind2(t1..td)
-\item long data.frame: columns for id, ind, time, value (ind must have exactly 2 levels)
-}
-}
-\examples{
-data(example_binary)
-dat <- as_binary_data(example_binary$y, format = "wide",
-                      times = example_binary$times)
-dim(dat$y)
-dat$d_single
+Prepare complete paired observations in Method2 time order
 }

@@ -2,31 +2,23 @@
 % Please edit documentation in R/bic_eval.R
 \name{eval_bic}
 \alias{eval_bic}
-\title{Compute BIC from a fitted object (posterior mean plug-in)}
+\title{Evaluate Method2 BIC at ECR-aligned posterior means}
 \usage{
-eval_bic(fit, x, format = c("auto", "wide", "long"))
+eval_bic(fit, x, format = NULL, layout = NULL)
 }
 \arguments{
-\item{fit}{mcmcgraph_result}
+\item{fit}{A new Method2 fit. Old covariance fits must be refitted.}
 
-\item{x}{original input data (same used in fitting)}
+\item{x}{The original observations, in the original layout.}
 
-\item{format}{"auto" | "wide" | "long"}
+\item{format}{Input format; defaults to the fitted format.}
+
+\item{layout}{Input layout; defaults to the fitted layout.}
 }
 \value{
-data.frame with J, loglik, BIC
+Data frame J, loglik, q, BIC. q = 10\emph{J + (J-1) + 2}T + 6.
+The observed mixture likelihood is used, not the complete-data likelihood.
 }
 \description{
-Uses the relabeled posterior means stored on the fit (so the plug-in is not
-corrupted by label switching). The likelihood and parameter count follow
-the fitted covariance model: state-specific \code{phi}/\code{psi} by default, or the
-restricted shared-\code{phi} special case when \code{two_phi = FALSE}.
-}
-\examples{
-\donttest{
-data(example_binary)
-fit <- run_mcmc_binary(example_binary$y, J = 3, times = example_binary$times,
-                       niter = 300, seed = 1)
-eval_bic(fit, x = example_binary$y, format = "wide")
-}
+Evaluate Method2 BIC at ECR-aligned posterior means
 }

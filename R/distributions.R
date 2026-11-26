@@ -1,168 +1,59 @@
-# distributions.R
-# Custom two-block SAD(1) distributions for paired (K = 2) data: density + RNG.
-# dSADmvnorm2 is the paper's general model (phi for state 1, psi for state 2).
-# dSADmvnorm retains the restricted shared-correlation special case. These are
-# not exported, but must exist as package objects so nimble can resolve them.
-
-#' @keywords internal
-dSADmvnorm <- nimble::nimbleFunction(
-  run = function(
-    x    = double(1),
-    mean = double(1),
-    phi  = double(0),
-    v_sq = double(1),
-    d1   = integer(0),
-    d2   = integer(0),
-    log  = integer(0, default = 0L)
-  ) {
-    returnType(double(0))
-
-    x1 <- numeric(d1, init = TRUE)
-    m1 <- numeric(d1, init = TRUE)
-    v1 <- numeric(d1, init = TRUE)
-    x2 <- numeric(d2, init = TRUE)
-    m2 <- numeric(d2, init = TRUE)
-    v2 <- numeric(d2, init = TRUE)
-
-    for (jj in 1:d1) {
-      x1[jj] <- x[jj]
-      m1[jj] <- mean[jj]
-      v1[jj] <- v_sq[jj]
-    }
-    for (jj in 1:d2) {
-      off <- d1 + jj
-      x2[jj] <- x[off]
-      m2[jj] <- mean[off]
-      v2[jj] <- v_sq[off]
-    }
-
-    q <- 0.0
-
-    # Block 1 (individual 1): shared phi
-    s <- 0.0
-    for (jj in 1:d1) {
-      s <- (x1[jj] - m1[jj]) + phi * s
-      q <- q + (s * s) / v1[jj] + log(2.0 * 3.141592653589793 * v1[jj])
-    }
-
-    # Block 2 (individual 2): same shared phi
-    s <- 0.0
-    for (jj in 1:d2) {
-      s <- (x2[jj] - m2[jj]) + phi * s
-      q <- q + (s * s) / v2[jj] + log(2.0 * 3.141592653589793 * v2[jj])
-    }
-
-    logdens <- -0.5 * q
-    if (log) return(logdens) else return(exp(logdens))
-  }
-)
-
-#' @keywords internal
-rSADmvnorm <- nimble::nimbleFunction(
-  run = function(
-    n    = integer(0, default = 1),
-    mean = double(1),
-    phi  = double(0),
-    v_sq = double(1),
-    d1   = integer(0),
-    d2   = integer(0)
-  ) {
-    returnType(double(1))
-    if (n != 1) print("rSADmvnorm only supports n=1")
-
-    d <- d1 + d2
-    out <- numeric(d, init = TRUE)
-
-    s_prev <- 0.0
-    for (jj in 1:d1) {
-      err_j <- rnorm(1, 0, sd = sqrt(v_sq[jj]))
-      x_j_minus_mean_j <- err_j - phi * s_prev
-      out[jj] <- mean[jj] + x_j_minus_mean_j
-      s_prev <- err_j
-    }
-
-    s_prev <- 0.0
-    for (jj in 1:d2) {
-      off <- d1 + jj
-      err_j <- rnorm(1, 0, sd = sqrt(v_sq[off]))
-      x_j_minus_mean_j <- err_j - phi * s_prev
-      out[off] <- mean[off] + x_j_minus_mean_j
-      s_prev <- err_j
-    }
-
-    return(out)
-  }
-)
-
-# ---------------------------------------------------------------------------
-# Two-parameter variant: block 1 (individual 1) uses `phi`, block 2 uses `psi`.
-# Selected by default via run_mcmc_binary(two_phi = TRUE). The shared-phi
-# dSADmvnorm above is retained only as the optional special case phi = psi.
-# ---------------------------------------------------------------------------
-
-#' @keywords internal
-dSADmvnorm2 <- nimble::nimbleFunction(
-  run = function(
-    x    = double(1),
-    mean = double(1),
-    phi  = double(0),
-    psi  = double(0),
-    v_sq = double(1),
-    d1   = integer(0),
-    d2   = integer(0),
-    log  = integer(0, default = 0L)
-  ) {
+# Method2 Eqs. (5)-(7), (19). Time-interleaved order throughout.
+# The innovation transform has unit determinant, so no extra Jacobian.
+dBivSAD <- nimble::nimbleFunction(
+  run = function(x = double(1), mean = double(1), phi = double(1),
+                 psi = double(1), lambda = double(1), v_sq = double(1),
+                 u_sq = double(1), times = double(1),
+                 log = integer(0, default = 0L)) {
     returnType(double(0))
     q <- 0.0
-
-    # Block 1 (individual 1): phi
-    s <- 0.0
-    for (jj in 1:d1) {
-      s <- (x[jj] - mean[jj]) + phi * s
-      q <- q + (s * s) / v_sq[jj] + log(2.0 * 3.141592653589793 * v_sq[jj])
+    prev1 <- 0.0
+    prev2 <- 0.0
+    for (t in 1:length(times)) {
+      if (v_sq[t] <= 0.0 | u_sq[t] <= 0.0) {
+        if (log) return(-Inf) else return(0.0)
+      }
+      rho <- exp(-lambda[1]*times[t]) - exp(-lambda[2]*times[t])
+      h <- 1.0 - rho*rho
+      if (h <= 0.0) {
+        if (log) return(-Inf) else return(0.0)
+      }
+      r1 <- x[2*t-1] - mean[2*t-1]
+      r2 <- x[2*t] - mean[2*t]
+      e1 <- r1 - phi[1]*prev1 - psi[1]*prev2
+      e2 <- r2 - psi[2]*prev1 - phi[2]*prev2
+      a <- e1/sqrt(v_sq[t])
+      b <- e2/sqrt(u_sq[t])
+      q <- q + 2.0*log(2.0*3.141592653589793) + log(v_sq[t]) +
+        log(u_sq[t]) + log(h) + (a*a - 2.0*rho*a*b + b*b)/h
+      prev1 <- r1
+      prev2 <- r2
     }
-
-    # Block 2 (individual 2): psi
-    s <- 0.0
-    for (jj in 1:d2) {
-      off <- d1 + jj
-      s <- (x[off] - mean[off]) + psi * s
-      q <- q + (s * s) / v_sq[off] + log(2.0 * 3.141592653589793 * v_sq[off])
-    }
-
-    logdens <- -0.5 * q
-    if (log) return(logdens) else return(exp(logdens))
+    ans <- -0.5*q
+    if (log) return(ans) else return(exp(ans))
   }
 )
 
-#' @keywords internal
-rSADmvnorm2 <- nimble::nimbleFunction(
-  run = function(
-    n    = integer(0, default = 1),
-    mean = double(1),
-    phi  = double(0),
-    psi  = double(0),
-    v_sq = double(1),
-    d1   = integer(0),
-    d2   = integer(0)
-  ) {
+rBivSAD <- nimble::nimbleFunction(
+  run = function(n = integer(0, default = 1L), mean = double(1),
+                 phi = double(1), psi = double(1), lambda = double(1),
+                 v_sq = double(1), u_sq = double(1), times = double(1)) {
     returnType(double(1))
-    if (n != 1) print("rSADmvnorm2 only supports n=1")
-    d <- d1 + d2
-    out <- numeric(d, init = TRUE)
-
-    s_prev <- 0.0
-    for (jj in 1:d1) {
-      err_j <- rnorm(1, 0, sd = sqrt(v_sq[jj]))
-      out[jj] <- mean[jj] + (err_j - phi * s_prev)
-      s_prev <- err_j
-    }
-    s_prev <- 0.0
-    for (jj in 1:d2) {
-      off <- d1 + jj
-      err_j <- rnorm(1, 0, sd = sqrt(v_sq[off]))
-      out[off] <- mean[off] + (err_j - psi * s_prev)
-      s_prev <- err_j
+    if (n != 1L) stop("rBivSAD supports n=1 only")
+    out <- numeric(2*length(times), init = TRUE)
+    prev1 <- 0.0
+    prev2 <- 0.0
+    for (t in 1:length(times)) {
+      rho <- exp(-lambda[1]*times[t]) - exp(-lambda[2]*times[t])
+      a <- rnorm(1, 0, 1)
+      b <- rnorm(1, 0, 1)
+      r1 <- phi[1]*prev1 + psi[1]*prev2 + sqrt(v_sq[t])*a
+      r2 <- psi[2]*prev1 + phi[2]*prev2 +
+        sqrt(u_sq[t])*(rho*a + sqrt(1.0-rho*rho)*b)
+      out[2*t-1] <- mean[2*t-1] + r1
+      out[2*t] <- mean[2*t] + r2
+      prev1 <- r1
+      prev2 <- r2
     }
     return(out)
   }

@@ -3,7 +3,7 @@
 #' Fits one finite mixture at an upper bound `J_max` using a sparse symmetric
 #' Dirichlet prior. The post-burn-in draws are summarized by the posterior
 #' distribution of the occupied-component count and by the posterior-mean
-#' mixing proportions, matching Equations (20)--(23) of the accompanying
+#' mixing proportions, matching Equations (21)--(24) of the accompanying
 #' manuscript. No grid of fixed-J models is fitted by this function.
 #'
 #' The returned `selected_K` is the smallest number of components whose sorted
@@ -16,9 +16,9 @@
 #' @param x Data accepted by [run_mcmc_binary()].
 #' @param J_max Integer upper bound on the number of mixture components.
 #' @param e0 Positive symmetric Dirichlet concentration. Small values encourage
-#'   redundant components to empty; the default reproduces the sparse setting
-#'   used by the manuscript's overfitted-mixture analyses.
-#' @param mass_threshold Number in `(0, 1]`. The working resolution is the
+#'   redundant components to empty. Required explicitly because Method2
+#'   does not specify a numerical concentration.
+#' @param mass_threshold Number in `(0.5, 1]`. The working resolution is the
 #'   smallest number of sorted posterior-mean component weights whose
 #'   cumulative mass reaches this threshold.
 #' @param occupied_min_count Minimum number of allocated features required for
@@ -26,32 +26,22 @@
 #' @param credible_prob Probability used for the equal-tail credible interval
 #'   of the occupied-component count.
 #' @param ... Arguments passed to [run_mcmc_binary()], such as `times`, `niter`,
-#'   `thin`, `burnin_frac`, `seed`, `two_phi`, and other prior settings through
+#'   `thin`, `burnin_frac`, `seed`, `layout`, and other prior settings through
 #'   `priors`. Supplying `J` is an error; use `J_max`.
 #'
-#' @return An object of class `bpfc_overfit_result`. Important fields are
-#'   `selected_K`, `K_occ_mode`, `K_occ_interval`, `occupied_posterior`,
-#'   `component_spectrum`, `clustering`, and `fit`. `fit` is the complete
-#'   `J_max` [run_mcmc_binary()] result. `clustering` reassigns features to the
-#'   retained dominant components using their conditional posterior
-#'   probabilities and numbers them by decreasing posterior mean weight.
+#' @return A bpfc_overfit_result. selected_K is the mass-based working
+#'   resolution; K_occ_mode summarizes Eq. 22. Full J_max posterior assignment
+#'   probabilities and allocations are preserved as required by Eq. 20.
+#'   dominant_components identifies the retained components; retained_probability
+#'   reports each feature's probability mass in this subset. No tail feature is
+#'   forced into a dominant component. mass_threshold is required because
+#'   Method2 does not specify its numerical value. e0 must also be supplied.
 #' @export
-#' @examples
-#' \donttest{
-#' data(example_binary)
-#' overfit <- run_overfitted_binary(
-#'   example_binary$y, J_max = 6, times = example_binary$times,
-#'   niter = 300, seed = 1
-#' )
-#' overfit$selected_K
-#' overfit$occupied_posterior
-#' plot_overfitted_selection(overfit)
-#' }
 run_overfitted_binary <- function(
     x,
     J_max,
-    e0 = 0.02,
-    mass_threshold = 0.90,
+    e0,
+    mass_threshold,
     occupied_min_count = 1L,
     credible_prob = 0.95,
     ...
@@ -64,6 +54,7 @@ run_overfitted_binary <- function(
   if (!is.numeric(e0) || length(e0) != 1L || !is.finite(e0) || e0 <= 0) {
     stop("e0 must be one positive finite number.", call. = FALSE)
   }
+  if (occupied_min_count != 1L) stop("Method2 Eq. 21 requires occupied_min_count = 1.")
   .validate_overfit_summary_args(mass_threshold, occupied_min_count, credible_prob)
 
   dots <- list(...)
@@ -73,7 +64,8 @@ run_overfitted_binary <- function(
   priors <- dots$priors
   if (is.null(priors)) priors <- list()
   if (!is.list(priors)) stop("priors must be a list.", call. = FALSE)
-  priors$e0 <- e0
+  if (!is.null(priors$alpha)) stop("Use e0 for the overfitted symmetric Dirichlet prior.")
+  priors$alpha <- e0
   dots$priors <- priors
 
   fit <- do.call(
@@ -110,8 +102,8 @@ run_overfitted_binary <- function(
 .validate_overfit_summary_args <- function(mass_threshold, occupied_min_count,
                                            credible_prob) {
   if (!is.numeric(mass_threshold) || length(mass_threshold) != 1L ||
-      !is.finite(mass_threshold) || mass_threshold <= 0 || mass_threshold > 1) {
-    stop("mass_threshold must be in (0, 1].", call. = FALSE)
+      !is.finite(mass_threshold) || mass_threshold <= 0.5 || mass_threshold > 1) {
+    stop("mass_threshold must be in (0.5, 1] to retain a majority of posterior mass.", call. = FALSE)
   }
   if (!is.numeric(occupied_min_count) || length(occupied_min_count) != 1L ||
       is.na(occupied_min_count) || occupied_min_count != as.integer(occupied_min_count) ||
@@ -127,7 +119,7 @@ run_overfitted_binary <- function(
 
 #' @keywords internal
 #' @noRd
-.summarize_overfitted_fit <- function(fit, mass_threshold = 0.90,
+.summarize_overfitted_fit <- function(fit, mass_threshold,
                                       occupied_min_count = 1L,
                                       credible_prob = 0.95) {
   .validate_overfit_summary_args(mass_threshold, occupied_min_count, credible_prob)
@@ -179,13 +171,12 @@ run_overfitted_binary <- function(
     dominant = seq_len(J_max) <= selected_K
   )
 
-  raw_dominant_probability <- fit$cluster_prob[, dominant_components, drop = FALSE]
-  retained_probability <- rowSums(raw_dominant_probability)
-  conditional_probability <- raw_dominant_probability /
-    pmax(retained_probability, .Machine$double.xmin)
-  colnames(conditional_probability) <- paste0("cluster", seq_len(selected_K))
-  clustering <- max.col(conditional_probability, ties.method = "first")
+  # Method2 Eq. 20 summaries remain over ALL J_max components.
+  # Selecting a working resolution does not authorize tail reassignment.
+  conditional_probability <- fit$cluster_prob
+  clustering <- fit$clustering
   cluster_uncertainty <- 1 - apply(conditional_probability, 1L, max)
+  retained_probability <- rowSums(fit$cluster_prob[,dominant_components,drop=FALSE])
 
   list(
     selected_K = as.integer(selected_K),
@@ -197,6 +188,7 @@ run_overfitted_binary <- function(
     dominant_components = as.integer(dominant_components),
     clustering = as.integer(clustering),
     cluster_prob = conditional_probability,
+    cluster_confidence = 1-cluster_uncertainty,
     cluster_uncertainty = cluster_uncertainty,
     retained_probability = retained_probability
   )

@@ -49,12 +49,3 @@ identified by the corresponding mathematical symbol, \ifelse{html}{\out{
 ranges so that convergence remains visible for both large and small
 components.
 }
-\examples{
-\donttest{
-data(example_binary)
-fit <- run_mcmc_binary(example_binary$y, J = 3,
-                       times = example_binary$times,
-                       niter = 300, seed = 1)
-plot_mixing_trace(fit)
-}
-}

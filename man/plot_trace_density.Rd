@@ -20,11 +20,3 @@ plotted. Called for its side effect of drawing trace and density panels.
 \description{
 Plot trace + density for selected parameters
 }
-\examples{
-\donttest{
-data(example_binary)
-fit <- run_mcmc_binary(example_binary$y, J = 3, times = example_binary$times,
-                       niter = 300, seed = 1)
-plot_trace_density(fit, params = c("^phi"))
-}
-}

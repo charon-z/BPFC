@@ -2,6 +2,8 @@
 #'
 #' A toy dataset in the required wide format: an n x (2d) matrix.
 #' The first d columns are individual 1 across time, the next d columns are individual 2.
+#' This historical dataset is retained unchanged from version 0.1.3. It is an
+#' input-format example, not a new draw from the version 0.3.0 bivariate covariance model.
 #'
 #' @format A list with:
 #' \describe{
